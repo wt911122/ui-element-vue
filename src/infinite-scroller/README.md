@@ -1,6 +1,8 @@
-#Infinite Scroller
+# Infinite Scroller
 
-#配置项
+无限滚动vue组件，新增了了滚动位置缓存，筛选重置刷新
+
+# 配置项
 - list 绑定列表对象
 
 - size 每次载入多少条数据
@@ -10,6 +12,8 @@
 - loadmore 数据请求方法，修改绑定列表对象的方法
 
 - spinner 是否需要载入动画
+
+- marker 缓存存储的前缀唯一识别字符串
 
 用法如同demo.vue
 

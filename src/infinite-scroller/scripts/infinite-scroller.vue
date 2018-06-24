@@ -47,6 +47,7 @@
         loading: false,
         containerHeight: 0,
         currentIndex: 0,
+        initialTop: 0,
       }
     },
     props: {
@@ -73,7 +74,11 @@
       nomore: {
         type: Boolean,
         default: false // 是否需要最后的显示‘没有了’
-      }
+      },
+      marker: {
+        type: String,
+        default: 'infinite',
+      },
     },
     watch: {
       list(arr){
@@ -82,21 +87,32 @@
             let l = this.list.length,
                 i = this.itemMetas.length,
                 h = this.itemMetas[i-1] ? this.itemMetas[i-1].offset + this.itemMetas[i-1].height : 0;
-            const metas = [];
-            for(; i<l; i++){
-              let item_h = this.$refs[this.getItemId(i)][0].offsetHeight;
-              metas.push({
-                height: item_h,
-                offset: h,
-                data: this.list[i],
-              });
-              h += item_h;
+            if(this.isUpdate()){
+              this.itemMetas = [];
+              i = 0;
+              h = 0;
             }
-            this.itemMetas = this.itemMetas.concat(metas);
-            this.containerHeight = h;
-            this.loading = false;
+            Vue.nextTick(() => {
+              const metas = [];
+              for(; i<l; i++){
+                let item_h = this.$refs[this.getItemId(i)][0].offsetHeight;
+
+                metas.push({
+                  height: item_h,
+                  offset: h,
+                  data: this.list[i],
+                });
+                h += item_h;
+              }
+              this.itemMetas = this.itemMetas.concat(metas);
+              this.containerHeight = h;
+              this.loading = false;
+            })
+
 
           })
+        }else{
+
         }
       }
     },
@@ -108,7 +124,26 @@
     },
     methods: {
       init(){
-        this.load();
+        const listmark = Number(sessionStorage.getItem(this.key()));
+        const func = () =>{
+          if(this.itemMetas.length <= listmark){
+            this.loadmore().then(func);
+          }else{
+
+            window.scrollTo(0, this.itemMetas[listmark].offset + this.itemMetas[listmark].height + this.initialTop);
+            setTimeout(() => {
+              window.addEventListener('scroll', this.onScroll)
+            }, 500)
+
+          }
+        }
+        if(listmark && listmark > 0){
+          func()
+
+        }else{
+          this.load();
+          window.addEventListener('scroll', this.onScroll)
+        }
       },
       load(){
         if(!this.loading){
@@ -119,19 +154,39 @@
       getItemId(id){
         return `item_${id}`;
       },
+      isUpdate(){
+        return this.itemMetas.some((item, idx) => {
+          return this.list[idx] !== item.data
+        })
+      },
       findNextIndex(index, top){
+        if(index < 0){
+          return 0;
+        }
         const meta = this.itemMetas[index];
-        if(meta.offset > top){
+        const topinit = this.initialTop;
+        if(meta.offset + topinit > top){
           return this.findNextIndex(index-1, top);
         }
 
-        if(meta.offset + meta.height < top){
+        if(meta.offset + topinit + meta.height < top){
           return this.findNextIndex(index+1, top);
         }
         return index
       },
+      saveStart(){
+        let i = undefined;
+        return () => {
+          if(i) clearTimeout(i);
+          i = setTimeout(() => {
+            sessionStorage.setItem(this.key(), this.attachedStart);
+          }, 200);
+
+        }
+      },
       calculateStart(top) {
         this.attachedStart = this.findNextIndex(this.attachedStart, top);
+        this._p();
       },
       onScroll() {
         const top = getScrollTop();
@@ -139,12 +194,19 @@
         if(top + getVisibleHeight() > this.containerHeight - this.offset){
           this.load();
         }
+      },
+      key(){
+        return `${this.marker}-infinite-scroller`;
       }
     },
 
     mounted() {
+      this.initialTop = this.$el.getBoundingClientRect().top;
       this.init();
-      window.addEventListener('scroll', this.onScroll)
+      this._p = this.saveStart()
+    },
+    beforeDestroy(){
+
     }
   }
 
@@ -154,9 +216,11 @@
 </style>
 <style scoped>
   .infinite-scroller{
+    position: relative;
     margin: 0;
     padding: 0;
     width: 100%;
+    list-style: none;
   }
   .infinite-scroller > .infinite-scroller-item{
     position: absolute;
